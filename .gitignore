@@ -16,3 +16,6 @@ Thumbs.db
 **/compiled
 **/compiled/**
 *~
+
+# vim generated files
+.*.swp
