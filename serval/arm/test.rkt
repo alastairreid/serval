@@ -109,9 +109,9 @@ Version #3: AArch64 code that mirrors some of the branching structure of RISC-V 
     (set-state-a1! s (state-a1 s2))))
 
 
-#| Running interpreter on concrete state |#
+#| Running interpreter on concrete state and check result |#
 
-(define (run program x)
+(define (check-run program x)
   ; todo: should initial state require that LR (X30) contains a legal return address or that SP makes sense?
   (define cstate (init-cpu-concrete test:symbols test:globals))
   (set-cpu-X! cstate 0 (bv x 64)) ; test input value for X0
@@ -143,7 +143,7 @@ Version #3: AArch64 code that mirrors some of the branching structure of RISC-V 
 
 (define test:globals (hash
   ; treat the stack as an array of 8-byte aligned objects
-  "stack" (lambda () core:marray 512 (core:mcell 8))
+  "stack" (lambda () (core:marray 512 (core:mcell 8)))
   ))
 
 
@@ -191,13 +191,16 @@ Version #3: AArch64 code that mirrors some of the branching structure of RISC-V 
     #:unwinding ~
     spec-sign-update))
 
+; run a single return instruction
 (interpret (init-cpu-concrete test:symbols test:globals) sign-implementation0)
-(run sign-implementation1 3)
-(run sign-implementation1 0)
-(run sign-implementation1 -3)
 
-; the following does not work with the current test:symbols/globals memory map
-; (run sign-implementation2 -3)
+; test sign on three concrete test values
+(check-run sign-implementation1 3)
+(check-run sign-implementation1 0)
+(check-run sign-implementation1 -3)
+
+; test memory-based sign implementation on one concrete test value
+(check-run sign-implementation2 -3)
 
 ; invoke test directly so that I get a useful stackdump when things fail
 ; (printf "Started checking refinement\n")
@@ -212,9 +215,9 @@ Version #3: AArch64 code that mirrors some of the branching structure of RISC-V 
 ;  (test-case+ "ToyArm Refinement" (verify-refinement sign-implementation1))
 
 (define (rt) (run-tests (test-suite+ "ToyArm tests"
-  (test-case+ "ToyArm Interpreter -3" (run sign-implementation1 -3))
-  (test-case+ "ToyArm Interpreter  0" (run sign-implementation1 0))
-  (test-case+ "ToyArm Interpreter  3" (run sign-implementation1 3))
+  (test-case+ "ToyArm Interpreter -3" (check-run sign-implementation1 -3))
+  (test-case+ "ToyArm Interpreter  0" (check-run sign-implementation1 0))
+  (test-case+ "ToyArm Interpreter  3" (check-run sign-implementation1 3))
   (test-case+ "ToyArm Refinement" (verify-refinement sign-implementation1))
   (test-case+ "ToyArm Safety" (verify-safety))
   )))

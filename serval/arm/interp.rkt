@@ -53,7 +53,7 @@
 (define/contract (resolve-mem-path cpu sz base offset)
   (-> cpu? (one-of/c 1 2 4 8) bv? bv? ptr?)
   (define mr (core:guess-mregion-from-addr #:dbg current-pc-debug (cpu-mregions cpu) base offset))
-  (core:bug-on (equal? mr #f) #:dbg current-pc-debug #:msg "Unable to guess mregion")
+  (core:bug-on (equal? mr #f) #:dbg current-pc-debug #:msg (format "Unable to guess mregion for ~a + ~a" base offset))
   (define start (core:mregion-start mr))
   (define end (core:mregion-end mr))
   (define name (core:mregion-name mr))
@@ -188,17 +188,17 @@
 (define (ldst-exec cpu rd rn memop signed datasize8 offset #:wback wback #:postindex postindex)
   (when (&& (equal? rn 31) (! (equal? memop 'prefetch))) (check-sp-alignment cpu))
   (define address (cpu-XSP cpu rn))
-  (define ptr (resolve-mem-path cpu datasize8 (cpu-XSP cpu rn) (if postindex (bv 0 64) offset)))
+  (define ptr (resolve-mem-path cpu datasize8 address (if postindex (bv 0 64) offset)))
   (case memop
     [(store)
-             (define data (extract (- (* 8 datasize8) 1) (cpu-X cpu rd)))
+             (define data (extract (- (* 8 datasize8) 1) 0 (cpu-X cpu rd)))
              (core:mblock-istore! (ptr-block ptr) data (ptr-path ptr))]
     [(load)
              (define data (core:mblock-iload (ptr-block ptr) (ptr-path ptr)))
              (set-cpu-X! cpu rd (extend data 64 signed))]
     [(prefetch) (core:bug-on #t "prefetch unsupported")])
   (when wback
-    (set-cpu-XSP! cpu rn (if postindex (bvadd address offset) address))))
+    (set-cpu-XSP! cpu rn (bvadd address offset))))
 
 ; ISA
 
@@ -297,7 +297,7 @@
        (set-cpu-X! cpu rd result)
        (set-cpu-pc! cpu (bvadd pc (bv 4 64)))]
 
-    ; load-store-register-immediate-postindex
+    ; load-store-register-immediate-pre/postindex
     [(bvmatch? opcode (bv #b10111000000000000000010000000000 32)
                       (bv #b10111111001000000000010000000000 32))
        (define size      (extract 31 30 opcode))
@@ -307,9 +307,10 @@
        (define scale     (bitvector->natural size))
        (define-values (memop signed regsize datasize8) (ldst-common size opc scale))
        (define offset    (sign-extend imm9 core:i64))
-       (ldst-exec cpu rd rn memop signed datasize8 offset #:wback #t #:postindex postindex)]
+       (ldst-exec cpu rd rn memop signed datasize8 offset #:wback #t #:postindex postindex)
+       (set-cpu-pc! cpu (bvadd pc (bv 4 64)))]
 
-    ; load-store-register-immediate-unsigned-offest
+    ; load-store-register-immediate-unsigned-offset
     [(bvmatch? opcode (bv #b10111001000000000000000000000000 32)
                       (bv #b10111111001000000000000000000000 32))
        (define size      (extract 31 30 opcode))
@@ -318,7 +319,8 @@
        (define scale     (bitvector->natural size))
        (define-values (memop signed regsize datasize8) (ldst-common size opc scale))
        (define offset    (bvshl (sign-extend imm12 core:i64) scale))
-       (ldst-exec cpu rd rn memop signed datasize8 offset #:wback #f #:postindex #f)]
+       (ldst-exec cpu rd rn memop signed datasize8 offset #:wback #f #:postindex #f)
+       (set-cpu-pc! cpu (bvadd pc (bv 4 64)))]
 
     ; load-store-register
     [(bvmatch? opcode (bv #b00111000001000000000100000000000 32)
@@ -333,7 +335,8 @@
        (define shift (if (equal? S (bv 1 1)) scale 0))
        (define-values (memop signed regsize datasize8) (ldst-common size opc scale))
        (define offset (extend-reg cpu rm extend-type shift datasize8))
-       (ldst-exec cpu rd rn memop signed datasize8 offset #:wback #f #:postindex #f)]
+       (ldst-exec cpu rd rn memop signed datasize8 offset #:wback #f #:postindex #f)
+       (set-cpu-pc! cpu (bvadd pc (bv 4 64)))]
 
     ; move-immediate
     [(bvmatch? opcode (bv #b00010010100000000000000000000000 32)

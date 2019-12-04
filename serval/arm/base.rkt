@@ -55,6 +55,7 @@
   (vector-set! x 30 (bv -1 64)) ; set LR to -1 to force program exit (minor hack)
   (define-symbolic n z c v boolean?) ; todo: do I want these to be boolean? or bit?
   (define mregions (core:create-mregions symbols globals))
+  ; (for/list ([mr (in-list mregions)]) (printf "MRegion ~a\n" mr))
   (cpu pc sp x n z c v mregions))
 
 
@@ -80,7 +81,7 @@
 
 (define/contract (set-cpu-XSP! c i x)
   (-> cpu? integer? (bitvector 64) void)
-  (printf "set-cpu-XSP! X~a <- ~a\n" i x)
+  ; (printf "set-cpu-XSP! X~a <- ~a\n" i x)
   (if (= i 31) (set-cpu-sp! c x) (set-cpu-gpr! c i x))
 )
 
