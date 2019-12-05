@@ -27,6 +27,7 @@
    pstate-z
    pstate-c
    pstate-v
+   pstate-el
    mregions
    )
    #:mutable #:transparent)
@@ -44,7 +45,7 @@
   (define x (make-vector 31 (bv 0 64)))
   (vector-set! x 30 (bv -1 64)) ; set LR to -1 to force program exit (minor hack)
   (define mregions (core:create-mregions symbols globals))
-  (cpu pc sp x #f #f #f #f mregions))
+  (cpu pc sp x #f #f #f #f (bv 3 2) mregions))
 
 ; symbolic cpu state
 (define (init-cpu-symbolic [symbols null] [globals null])
@@ -56,7 +57,7 @@
   (define-symbolic n z c v boolean?) ; todo: do I want these to be boolean? or bit?
   (define mregions (core:create-mregions symbols globals))
   ; (for/list ([mr (in-list mregions)]) (printf "MRegion ~a\n" mr))
-  (cpu pc sp x n z c v mregions))
+  (cpu pc sp x n z c v (bv 3 2) mregions))
 
 
 ; read/write GPR[i]
