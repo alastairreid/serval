@@ -19,139 +19,151 @@
   Poor man's assembler
 |#
 
+(define (insert hi lo x old)
+  ; (printf "insert ~a ~a ~a ~a\n" hi lo x old)
+  (define w (+ (- hi lo) 1))
+  (define mask (arithmetic-shift (- (arithmetic-shift 1 w) 1) lo))
+  (define nmask (bitwise-not mask))
+  (bitwise-ior (bitwise-and old nmask)
+               (bitwise-and (arithmetic-shift x lo) mask)))
+
 ; condition codes
-(define cond-eq (bv #b0000 4))
-(define cond-ne (bv #b0000 4))
-(define cond-cs (bv #b0010 4))
-(define cond-cc (bv #b0011 4))
-(define cond-mi (bv #b0100 4))
-(define cond-pl (bv #b0101 4))
-(define cond-vs (bv #b0110 4))
-(define cond-vc (bv #b0111 4))
-(define cond-hi (bv #b1000 4))
-(define cond-ls (bv #b1001 4))
-(define cond-ge (bv #b1010 4))
-(define cond-lt (bv #b1011 4))
-(define cond-gt (bv #b1100 4))
-(define cond-le (bv #b1101 4))
-(define cond-al (bv #b1110 4))
-(define cond-nv (bv #b1111 4))
+(define cond-eq #b0000)
+(define cond-ne #b0000)
+(define cond-cs #b0010)
+(define cond-cc #b0011)
+(define cond-mi #b0100)
+(define cond-pl #b0101)
+(define cond-vs #b0110)
+(define cond-vc #b0111)
+(define cond-hi #b1000)
+(define cond-ls #b1001)
+(define cond-ge #b1010)
+(define cond-lt #b1011)
+(define cond-gt #b1100)
+(define cond-le #b1101)
+(define cond-al #b1110)
+(define cond-nv #b1111)
 
-(define (add-sub-extended rd rn rm op S option imm3)
-  (bvinsert 30 30 op
-  (bvinsert 29 29 S
-  (bvinsert 20 16 (bv rm 5)
-  (bvinsert 12 10 imm3
-  (bvinsert  9  5 (bv rn 5)
-  (bvinsert  4  0 (bv rd 5)
-  (bv #b00001011001000000000000000000000 32))))))))
+(define (add-sub-extended sf rd rn rm op S option imm3)
+  (insert 31 31 sf
+  (insert 30 30 op
+  (insert 29 29 S
+  (insert 20 16 rm
+  (insert 12 10 imm3
+  (insert  9  5 rn
+  (insert  4  0 rd
+  #b00001011001000000000000000000000))))))))
 
-(define (add-sub-immediate rd rn imm12 sh S op)
-  (bvinsert  4  0 (bv rd 5)
-  (bvinsert  9  5 (bv rn 5)
-  (bvinsert 21 10 imm12
-  (bvinsert 22 22 sh
-  (bvinsert 29 29 S
-  (bvinsert 30 30 op
-  (bv #b10010001000000000000000000000000 32))))))))
+(define (add-sub-immediate sf rd rn imm12 sh S op)
+  (insert  4  0 rd
+  (insert  9  5 rn
+  (insert 21 10 imm12
+  (insert 22 22 sh
+  (insert 29 29 S
+  (insert 30 30 op
+  (insert 31 31 sf
+  #b10010001000000000000000000000000))))))))
 
 (define (ret rn)
-  (bvinsert  9  5 (bv rn 5)
-  (bv #b11010110010111110000000000000000 32)))
+  (insert  9  5 rn
+  #b11010110010111110000000000000000))
 
-(define (cmp-immediate rn imm12 sh)
-  (add-sub-immediate 31 rn imm12 sh (bv 1 1) (bv 1 1)))
+(define (cmp-immediate sf rn imm12 sh)
+  (add-sub-immediate sf 31 rn imm12 sh 1 1))
 
-(define (csel rd rn rm ccode op o2)
-  (bvinsert  4  0 (bv rd 5)
-  (bvinsert  9  5 (bv rn 5)
-  (bvinsert 20 16 (bv rm 5)
-  (bvinsert 10 10 o2
-  (bvinsert 15 12 ccode
-  (bvinsert 30 30 op
-  (bv #b00011010100000000000000000000000 32))))))))
+(define (csel sf rd rn rm ccode op o2)
+  (insert  4  0 rd
+  (insert  9  5 rn
+  (insert 20 16 rm
+  (insert 10 10 o2
+  (insert 15 12 ccode
+  (insert 30 30 op
+  (insert 31 31 sf
+  #b00011010100000000000000000000000))))))))
 
-(define (csinc rd rn ccode)
+(define (csinc sf rd rn ccode)
   ; todo: this is somewhere between Arm's official CINC and the CSINC mnemonics
-  (csel rd rn rn ccode (bv 0 1) (bv 1 1)))
+  (csel sf rd rn rn ccode 0 1))
 
-(define (cset rd ccode)
+(define (cset sf rd ccode)
   ; todo: this flips the meaning of ccode relative to Arm mnemonics
-  (csinc rd 31 ccode))
+  (csinc sf rd 31 ccode))
 
-(define (csinv rd rn ccode)
-  (csel rd rn rn ccode (bv 1 1) (bv 0 1)))
+(define (csinv sf rd rn ccode)
+  (csel sf rd rn rn ccode 1 0))
 
 (define (ldr-imm-post rt rn offset size signed)
-  (bvinsert 31 30 size
-  (bvinsert 23 22 (if signed (bv #b10 2) (bv #b01 2)) ; todo: 32-bit
-  (bvinsert 20 12 (bv offset 9) ; todo: worry about overflow
-  (bvinsert 11 10 (bv #b01 2)
-  (bvinsert  9  5 (bv rn 5)
-  (bvinsert  4  0 (bv rt 5)
-  (bv #b10111000000000000000000000000000 32))))))))
+  (insert 31 30 size
+  (insert 23 22 (if signed #b10 #b01) ; todo: 32-bit
+  (insert 20 12 offset ; todo: worry about overflow
+  (insert 11 10 #b01
+  (insert  9  5 rn
+  (insert  4  0 rt
+  #b10111000000000000000000000000000)))))))
 
 (define (ldr-imm-pre rt rn offset size signed)
-  (bvinsert 31 30 size
-  (bvinsert 23 22 (if signed (bv #b10 2) (bv #b01 2)) ; todo: 32-bit
-  (bvinsert 20 12 (bv offset 9) ; todo: worry about overflow
-  (bvinsert 11 10 (bv #b11 2)
-  (bvinsert  9  5 (bv rn 5)
-  (bvinsert  4  0 (bv rt 5)
-  (bv #b10111000000000000000000000000000 32))))))))
+  (insert 31 30 size
+  (insert 23 22 (if signed #b10 #b01) ; todo: 32-bit
+  (insert 20 12 offset ; todo: worry about overflow
+  (insert 11 10 #b11
+  (insert  9  5 rn
+  (insert  4  0 rt
+  #b10111000000000000000000000000000)))))))
 
 (define (ldr-imm-uoffset rt rn offset size signed)
-  (bvinsert 31 30 size
-  (bvinsert 23 22 (if signed (bv #b10 2) (bv #b01 2)) ; todo: 32-bit
-  (bvinsert 21 10 (bv offset 12) ; todo: worry about overflow
-  (bvinsert  9  5 (bv rn 5)
-  (bvinsert  4  0 (bv rt 5)
-  (bv #b10111010000000000000000000000000 32)))))))
+  (insert 31 30 size
+  (insert 23 22 (if signed #b10 #b01) ; todo: 32-bit
+  (insert 21 10 offset ; todo: worry about overflow
+  (insert  9  5 rn
+  (insert  4  0 rt
+  #b10111010000000000000000000000000))))))
 
 (define (str-imm-post rt rn offset size)
-  (bvinsert 31 30 size
-  (bvinsert 23 22 (bv #b00 2)
-  (bvinsert 20 12 (bv offset 9) ; todo: worry about overflow
-  (bvinsert 11 10 (bv #b01 2)
-  (bvinsert  9  5 (bv rn 5)
-  (bvinsert  4  0 (bv rt 5)
-  (bv #b10111000000000000000000000000000 32))))))))
+  (insert 31 30 size
+  (insert 23 22 #b00
+  (insert 20 12 offset ; todo: worry about overflow
+  (insert 11 10 #b01
+  (insert  9  5 rn
+  (insert  4  0 rt
+  #b10111000000000000000000000000000)))))))
 
 (define (str-imm-pre rt rn offset size)
-  (bvinsert 31 30 size
-  (bvinsert 23 22 (bv #b00 2)
-  (bvinsert 20 12 (bv offset 9) ; todo: worry about overflow
-  (bvinsert 11 10 (bv #b11 2)
-  (bvinsert  9  5 (bv rn 5)
-  (bvinsert  4  0 (bv rt 5)
-  (bv #b10111000000000000000000000000000 32))))))))
+  (insert 31 30 size
+  (insert 23 22 #b00
+  (insert 20 12 offset ; todo: worry about overflow
+  (insert 11 10 #b11
+  (insert  9  5 rn
+  (insert  4  0 rt
+  #b10111000000000000000000000000000)))))))
 
 (define (str-imm-uoffset rt rn offset size)
-  (bvinsert 31 30 size
-  (bvinsert 23 22 (bv #b00 2)
-  (bvinsert 21 10 (bv offset 12) ; todo: worry about overflow
-  (bvinsert  9  5 (bv rn 5)
-  (bvinsert  4  0 (bv rt 5)
-  (bv #b10111010000000000000000000000000 32)))))))
+  (insert 31 30 size
+  (insert 23 22 #b00
+  (insert 21 10 offset ; todo: worry about overflow
+  (insert  9  5 rn
+  (insert  4  0 rt
+  #b10111010000000000000000000000000))))))
 
-(define (mov-immediate rd imm16 opc hw)
-  (bvinsert 30 29 opc
-  (bvinsert 22 21 hw
-  (bvinsert 20  5 imm16
-  (bvinsert  4  0 (bv rd 5)
-  (bv #b00010010100000000000000000000000 32))))))
+(define (mov-immediate sf rd imm16 opc hw)
+  (insert 31 31 sf
+  (insert 30 29 opc
+  (insert 22 21 hw
+  (insert 20  5 imm16
+  (insert  4  0 rd
+  #b00010010100000000000000000000000))))))
 
-(define (movn rd imm16 hw)
-  (mov-immediate rd imm16 (bv #b00 2) (bv hw 2)))
+(define (movn sf rd imm16 hw)
+  (mov-immediate sf rd imm16 #b00 hw))
 
-(define (movz rd imm16 hw)
-  (mov-immediate rd imm16 (bv #b10 2) (bv hw 2)))
+(define (movz sf rd imm16 hw)
+  (mov-immediate sf rd imm16 #b10 hw))
 
-(define (movk rd imm16 hw)
-  (mov-immediate rd imm16 (bv #b11 2) (bv hw 2)))
+(define (movk sf rd imm16 hw)
+  (mov-immediate sf rd imm16 #b11 hw))
 
 ; turn a sequence of instructions into a hash table of instructions, starting at address base
 (define (asm-block base insns)
-  (make-hash (for/list ([i (in-naturals base)] [insn (in-vector insns)]) (cons (bv (* 4 i) 64) insn))))
+  (make-hash (for/list ([i (in-naturals base)] [insn (in-vector insns)]) (cons (* 4 i) insn))))
 
 ; end

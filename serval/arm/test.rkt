@@ -15,7 +15,6 @@
 
 (provide (all-defined-out))
 
-
 #|
   Sign implementation
 |#
@@ -35,13 +34,12 @@ Version #1: idiomatic AArch64 code that avoids branches
 |#
 
 (define sign-implementation1 (asm-block 0 (vector
-  (cmp-immediate 00 (bv 0 12) (bv 0 1))
-  (cset          00 cond-le)
-  (csinv         00 00 cond-ge)
-  (movz          01 (bv 0 16) 0)
+  (cmp-immediate 1 00 0 0)
+  (cset          1 00 cond-le)
+  (csinv         1 00 00 cond-ge)
+  (movz          1 01 0 0)
   (ret           30)
 )))
-
 
 #|
 Version #2: variant on version #1 that gratuitiously saves/restores X0 from stack
@@ -55,12 +53,12 @@ Version #2: variant on version #1 that gratuitiously saves/restores X0 from stac
 |#
 
 (define sign-implementation2 (asm-block 0 (vector
-  (str-imm-pre   00 31 -8 (bv 3 2))
-  (ldr-imm-post  00 31 8 (bv 3 2) #f)
-  (cmp-immediate 00 (bv 0 12) (bv 0 1))
-  (cset          00 cond-le)
-  (csinv         00 00 cond-ge)
-  (movz          01 (bv 0 16) 0)
+  (str-imm-pre   00 31 -8 3)
+  (ldr-imm-post  00 31 8 3 #f)
+  (cmp-immediate 1 00 0 0)
+  (cset          1 00 cond-le)
+  (csinv         1 00 00 cond-ge)
+  (movz          1 01 0 0)
   (ret           30)
 )))
 
@@ -100,7 +98,7 @@ Version #3: AArch64 code that mirrors some of the branching structure of RISC-V 
 
 ; abstraction function: impl. cpu state to spec. state
 (define (AF cpu)
-  (state (cpu-X cpu 0) (cpu-X cpu 1)))
+  (state (cpu-X cpu 64 0) (cpu-X cpu 64 1)))
 
 ; Mutable version of sign specification
 (define (spec-sign-update s)
@@ -114,14 +112,14 @@ Version #3: AArch64 code that mirrors some of the branching structure of RISC-V 
 (define (check-run program x)
   ; todo: should initial state require that LR (X30) contains a legal return address or that SP makes sense?
   (define cstate (init-cpu-concrete test:symbols test:globals))
-  (set-cpu-X! cstate 0 (bv x 64)) ; test input value for X0
+  (set-cpu-X! cstate 64 0 (bv x 64)) ; test input value for X0
   (define astate0 (AF cstate))
   ; (printf "Concrete state before ~a\n" cstate)
   ; (printf "Abstract state before ~a\n" astate0)
   (interpret cstate program)
   (define astate1 (AF cstate))
   ; (printf "Concrete state after ~a\n" cstate)
-  ; (printf "Result ~a\n" (cpu-X cstate 0))
+  ; (printf "Result ~a\n" (cpu-X cstate 64 0))
   ; (printf "Abstract state after ~a\n" astate1)
   ; (printf "Expected abstract state after ~a\n" (spec-sign astate0))
   (check-equal? astate1 (spec-sign astate0))
