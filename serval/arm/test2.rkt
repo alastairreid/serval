@@ -29,10 +29,18 @@
   ; (hash-set! implementation:globals "stack" (lambda () (core:mcell 65536)))
   ; (hash-set! implementation:globals "stack" (lambda () (core:marray 65536 (core:mcell 1))))
   (hash-set! implementation:globals "stack" (lambda () (core:marray 8192 (core:mcell 8))))
-  (define symbols (list* (list #x00000 #x10000 'B "stack") implementation:symbols))
+  (hash-set! implementation:globals "code" (lambda () (core:marray 16384 (core:mcell 4))))
+  (define symbols (list*
+                    (list #x000000 #x010000 'B "stack")
+                    (list #x400000 #x410000 'B "code")
+                    implementation:symbols))
   ; (define symbols implementation:symbols)
 
   (define cstate (init-cpu-concrete symbols implementation:globals implementation:binary))
+  ; copy binary into memory
+  (for ([(addr data) implementation:binary])
+            ; (printf "~x -> ~x\n" addr data)
+            (mem-write! cstate 4 (bv addr 64) (bv 0 64) (bv data 32)))
   (set-cpu-pc! cstate (bv pc 64))
   (set-cpu-sp! cstate (bv #x10000 64))
 
